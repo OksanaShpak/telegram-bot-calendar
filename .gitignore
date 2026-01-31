@@ -1,8 +1,7 @@
 # Environment variables and secrets
 .env
 
-# Google OAuth credentials
-credentials.json
+# Google OAuth token (generated locally, secrets are in .env)
 token.json
 
 # Temporary files
