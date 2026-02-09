@@ -7,6 +7,7 @@ require('dotenv').config();
 // OAuth2 scopes for Google Calendar
 const SCOPES = ['https://www.googleapis.com/auth/calendar'];
 const TOKEN_PATH = path.join(__dirname, '..', 'token.json');
+const IS_PRODUCTION = !!process.env.WEBHOOK_URL;
 
 /**
  * Get OAuth2 credentials from environment variables
@@ -83,7 +84,7 @@ async function saveToken(token) {
 
   // Log the token JSON so user can copy it to env var / Render
   console.log('\n========================================');
-  console.log('COPY THIS TO YOUR .env (GOOGLE_TOKEN_JSON):');
+  console.log('UPDATE GOOGLE_TOKEN_JSON in .env and Render:');
   console.log('========================================');
   console.log(JSON.stringify(token));
   console.log('========================================\n');
@@ -91,10 +92,26 @@ async function saveToken(token) {
 
 /**
  * Get and store new token after prompting for user authorization
+ * Only works locally (interactive terminal required)
  * @param {google.auth.OAuth2} oAuth2Client The OAuth2 client to get token for
  * @returns {Promise<google.auth.OAuth2>} The authorized OAuth2 client
  */
 async function getNewToken(oAuth2Client) {
+  // On Render/production, we can't do interactive auth
+  if (IS_PRODUCTION) {
+    throw new Error(
+      'GOOGLE TOKEN EXPIRED - Cannot re-authorize on Render (no interactive terminal).\n\n' +
+      'To fix this:\n' +
+      '1. Run the bot LOCALLY: npm start\n' +
+      '2. Complete the Google OAuth authorization\n' +
+      '3. Copy the new GOOGLE_TOKEN_JSON from the console output\n' +
+      '4. Update GOOGLE_TOKEN_JSON in Render Environment variables\n' +
+      '5. Redeploy on Render\n\n' +
+      'NOTE: Google OAuth "Testing" mode tokens expire every 7 days.\n' +
+      'To avoid this, publish your OAuth app in Google Cloud Console.'
+    );
+  }
+
   const authUrl = oAuth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: SCOPES,
@@ -145,7 +162,8 @@ async function authorize() {
   if (token) {
     oAuth2Client.setCredentials(token);
 
-    // Check if token is expired and refresh if needed
+    // Try using the token directly - let Google's library handle refresh automatically
+    // Only manually refresh if we detect it's expiring
     try {
       if (oAuth2Client.isTokenExpiring()) {
         console.log('Token is expiring, refreshing...');
@@ -155,7 +173,7 @@ async function authorize() {
         console.log('Token refreshed and saved');
       }
     } catch (error) {
-      console.error('Token refresh failed, re-authorizing...', error.message);
+      console.error('Token refresh failed:', error.message);
       return await getNewToken(oAuth2Client);
     }
 
