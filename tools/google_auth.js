@@ -42,11 +42,21 @@ function createOAuth2Client() {
 }
 
 /**
- * Load saved token from env var or local file
+ * Load saved token from file or env var
+ * Priority: token.json file first (has freshest token after re-auth),
+ * then GOOGLE_TOKEN_JSON env var (for Render where no file exists)
  * @returns {Object|null} The saved token or null
  */
 async function loadToken() {
-  // First try environment variable (for Render / production)
+  // First try local token.json file (always has the freshest token after re-auth)
+  try {
+    const tokenContent = await fs.readFile(TOKEN_PATH);
+    return JSON.parse(tokenContent);
+  } catch (error) {
+    // File doesn't exist, that's fine
+  }
+
+  // Fall back to environment variable (for Render / production)
   if (process.env.GOOGLE_TOKEN_JSON) {
     try {
       return JSON.parse(process.env.GOOGLE_TOKEN_JSON);
@@ -55,13 +65,7 @@ async function loadToken() {
     }
   }
 
-  // Fall back to token.json file (for local development)
-  try {
-    const tokenContent = await fs.readFile(TOKEN_PATH);
-    return JSON.parse(tokenContent);
-  } catch (error) {
-    return null;
-  }
+  return null;
 }
 
 /**
